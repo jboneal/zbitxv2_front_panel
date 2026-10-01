@@ -21,7 +21,7 @@ bool block_read(){
  
   struct saved *q = (struct saved *)buff;
   if (q->magic != 0x00C0FFEE){
-    Serial.println("block was uninitialized");
+    Debug.println("block was uninitialized");
     memset((void *)&block, 0, sizeof(block));
     return false;
   }
@@ -75,14 +75,13 @@ void block_write(){
 //  block_dump();
 }
 
-#define Serial1 Serial
 
 void block_dump(){
-  Serial1.printf("block magic id %x\n", block.magic);
-  Serial1.printf("userid : %u\n", block.my_id);
+  Debug.printf("block magic id %x\n", block.magic);
+  Debug.printf("userid : %u\n", block.my_id);
   for (int i = 0; i < 6; i++)
-    Serial1.printf("%d ", block.calibration_data[i]);
-  Serial1.print("APs:\n");
+    Debug.printf("%d ", block.calibration_data[i]);
+  Debug.print("APs:\n");
   for (int i = 0; i < MAX_APS; i++)
-    Serial1.printf("%d. [%s]->[%s]\n", i+1, block.ap_list[i].ssid, block.ap_list[i].key);
+    Debug.printf("%d. [%s]->[%s]\n", i+1, block.ap_list[i].ssid, block.ap_list[i].key);
 }

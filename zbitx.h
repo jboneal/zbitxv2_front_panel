@@ -27,6 +27,33 @@
 extern int8_t edit_mode;
 //extern int text_streaming;
 
+/* How the panel talks to the radio.
+   PANEL_LINK_USB  : the panel's USB (CAT) port cabled to the Pi's USB host port;
+                     the Pico appears as /dev/ttyACM0 on the Pi. Default. No
+                     wiring changes inside the radio, and the WiFi radio is
+                     never started, which removes the transmit bursts that put
+                     clicks into the receiver.
+   PANEL_LINK_UART : 3-wire serial on GP16 (TX) / GP17 (RX). NOT usable on the
+                     zBitx V2 main board as built: the Pi's UART RX pin (BCM15,
+                     header pin 10) is the radio's RX_LINE T/R control.
+   PANEL_LINK_WIFI : Pico W WiFi to 192.168.4.1:8081 (original behaviour). */
+#define PANEL_LINK_WIFI 0
+#define PANEL_LINK_UART 1
+#define PANEL_LINK_USB  2
+#ifndef PANEL_LINK
+#define PANEL_LINK PANEL_LINK_USB
+#endif
+#define PANEL_UART_TX_PIN 16
+#define PANEL_UART_RX_PIN 17
+#define PANEL_UART_BAUD 115200
+#define PANEL_UART_RX_BUFFER 4096   // must hold a full poll response (WF line + changed fields)
+
+/* All debug output goes through Debug (defined in the main sketch), never
+   directly through Serial: in USB mode Serial IS the radio link and any stray
+   print would be parsed by the radio as a command. */
+#include <Arduino.h>
+extern arduino::HardwareSerial &Debug;
+
 //Some hardware definitions/pins
 #define ENC_S 1
 #define ENC_A 2

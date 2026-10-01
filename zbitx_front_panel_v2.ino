@@ -7,15 +7,21 @@ TO GET GOING WITH PICO ON ARDUINO:
 You may need to copy over the uf2 for the first time.
 The blink.ino should work (note that the pico w and pico have different gpios for the LED)
  */
-#include <WiFi.h>
 #include "zbitx.h"
+#if PANEL_LINK == PANEL_LINK_WIFI
+#include <WiFi.h>
+#endif
 extern "C" {
 #include "pico.h"
 #include "pico/time.h"
 #include "pico/bootrom.h"
 }
 
-auto &Debug = Serial;
+#if PANEL_LINK == PANEL_LINK_USB
+arduino::HardwareSerial &Debug = Serial1;   // USB carries the radio protocol, so debug goes to the UART on GP16/17
+#else
+arduino::HardwareSerial &Debug = Serial;
+#endif
 
 int freq = 7000000;
 unsigned long now = 0;
@@ -33,8 +39,14 @@ int vfwd=0, vswr=0, vref = 0, vbatt=0;
 int wheel_move = 0;
 
 //wifi connectivity stuff
+#if PANEL_LINK == PANEL_LINK_WIFI
 WiFiClient client;
 WiFiMulti multi;
+#elif PANEL_LINK == PANEL_LINK_UART
+#define LinkSerial Serial1
+#else
+#define LinkSerial Serial
+#endif
 extern char message_buffer[];
 char temp_ssid[32];
 char temp_key[32];
@@ -205,19 +217,31 @@ void command_tokenize(char c){
 		reset_tokenizer();
 }
 
-// I2c routines
+/* the link to the radio: WiFi TCP socket, or a serial port */
+#if PANEL_LINK == PANEL_LINK_WIFI
+bool link_connected(){ return client.connected(); }
+int link_write(const char *text){ return client.print(text); }
+void link_drop(const char *why){ Debug.printf("%s, dropping tcp\n", why); client.stop(); }
+int link_available(){ return client.available(); }
+size_t link_read(uint8_t *b, size_t n){ return client.readBytes(b, n); }
+#else
+bool link_connected(){ return true; }
+int link_write(const char *text){ return LinkSerial.write((const uint8_t *)text, strlen(text)); }
+void link_drop(const char *why){ Debug.println(why); }
+int link_available(){ return LinkSerial.available(); }
+size_t link_read(uint8_t *b, size_t n){ return LinkSerial.readBytes(b, n); }
+#endif
+
 // we separate out the updates with \n character
 void send_text(char *text){
 
-	if (!client.connected())
+	if (!link_connected())
 		return;
 
 	int len = strlen(text);
-	int written = client.print(text);
-	if (written != len){
-		Serial.println("short write, dropping tcp");
-		client.stop();
-	}
+	int written = link_write(text);
+	if (written != len)
+		link_drop("short write");
 }
 
 void send_updates(){
@@ -226,11 +250,11 @@ void send_updates(){
 	int update_count;
 	static unsigned int next_adc_update = 0;
 
-//	Serial.println("@");
+//	Debug.println("@");
 	send_text("?\n");
  
 	if (message_buffer[0]){
-		Serial.println(message_buffer);
+		Debug.println(message_buffer);
 		send_text(message_buffer);
 		message_buffer[0] = 0;
 	}
@@ -328,6 +352,7 @@ void wifi_init(){
 	temp_key[0] = 0;
 }
 
+#if PANEL_LINK == PANEL_LINK_WIFI
 // stores a successfully paired wifi ssid/key pair
 static void wifi_save(char *new_ssid, char *new_key){
 	Debug.println("block before:\n");
@@ -356,6 +381,7 @@ static void wifi_save(char *new_ssid, char *new_key){
 	block_write();
 	block_dump();
 }
+#endif
 
 
 struct field *ui_slice(){
@@ -441,7 +467,11 @@ void setup1() {
 	attachInterrupt(ENC_A, on_enc, CHANGE);
 	attachInterrupt(ENC_B, on_enc, CHANGE);
 
+#if PANEL_LINK == PANEL_LINK_WIFI
 	field_set("9", "zBitx firmware v4.00 2026-04-27\nWaiting for the zbitx wifi...\n", false);
+#else
+	field_set("9", "zBitx firmware v4.00 2026-04-27\nWired link to the radio\n", false);
+#endif
 
 	if (digitalRead(ENC_S) == LOW)
 		reset_usb_boot(0,0); //invokes reset into bootloader mode
@@ -461,6 +491,7 @@ void loop1(void) {
 	Communications loop
 */
 
+#if PANEL_LINK == PANEL_LINK_WIFI
 void wifi_poll(){
 	static bool wifi_connected = false;
 	static bool begin_issued = false;
@@ -487,7 +518,7 @@ void wifi_poll(){
 	}
 
 	if (!begin_issued){
-		Serial.println("wifi begin");
+		Debug.println("wifi begin");
 		set_state(STREAM_WIFI_CONNECTING);
 		WiFi.mode(WIFI_STA);
 		WiFi.begin("zbitx", "zbitx12345");
@@ -498,18 +529,41 @@ void wifi_poll(){
 
 	// association in progress — give it time, don't tear down
 	if (millis() - begin_started > WIFI_CONNECT_TIMEOUT_MS){
-		Serial.println("wifi connect timed out, retrying");
+		Debug.println("wifi connect timed out, retrying");
 		WiFi.disconnect();
 		begin_issued = false;
 	}
+}
+#endif
+
+void link_poll(){
+#if PANEL_LINK == PANEL_LINK_WIFI
+	wifi_poll();
+#else
+	static bool announced = false;
+	if (!announced){
+		set_state(STREAM_WIFI_ONLINE);
+		field_set("9", "Serial link to the radio is up\n", false);
+		announced = true;
+	}
+#endif
 }
 
 
 void setup(){
 	message_buffer[0] = 0;
-	Serial1.setTX(16);
-  Serial1.setRX(17);
-  Debug.begin(115200);
+	Serial1.setTX(PANEL_UART_TX_PIN);
+	Serial1.setRX(PANEL_UART_RX_PIN);
+#if PANEL_LINK == PANEL_LINK_UART
+	Serial1.setFIFOSize(PANEL_UART_RX_BUFFER);
+	Serial1.begin(PANEL_UART_BAUD);   // the radio link
+	Debug.begin(115200);              // USB stays the debug console
+#elif PANEL_LINK == PANEL_LINK_USB
+	Serial.begin(115200);             // the radio link (USB CDC, baud is ignored)
+	Debug.begin(115200);              // debug on the UART
+#else
+	Debug.begin(115200);
+#endif
 
   while (!Debug && millis() < 3000)
 		NULL;
@@ -522,8 +576,10 @@ void loop() {
   size_t mp3available, netavailable, bytes_to_read;
 	static uint32_t next_update = 0;
 
-  wifi_poll();
+  link_poll();
   core1_check();
+
+#if PANEL_LINK == PANEL_LINK_WIFI
 	delay(50);
 
 	//if the client is connected
@@ -533,7 +589,7 @@ void loop() {
 	}
 
 	if (!client.connected()){
-		Serial.println("trying connect to tcp");
+		Debug.println("trying connect to tcp");
 		if (!client.connect(host, port)){
 			delay(1000);
 			return;
@@ -542,15 +598,18 @@ void loop() {
 		field_set("9", "Connected to the remote!\n", false);
 		client.setTimeout(10000);
 	}
+#else
+	delay(5); // drain the serial buffer often; 50 ms of 115200 baud would overflow it
+#endif
 
-	netavailable = client.available();
-	bytes_to_read = sizeof(buff);
+	netavailable = link_available();
+	bytes_to_read = sizeof(buff) - 1; // leave room for the terminator written below
 
 	if (netavailable > 0){
 		if (bytes_to_read > netavailable)
 			bytes_to_read = netavailable;
 		int start = millis();
-		size_t actually_read = client.readBytes(buff, bytes_to_read);
+		size_t actually_read = link_read(buff, bytes_to_read);
 		buff[actually_read] = 0;
 		//Serial.printf("tokenizing<<<<<\n%s\n>>>>>>>\n", buff);
 		for (int i = 0; i < actually_read; i++)

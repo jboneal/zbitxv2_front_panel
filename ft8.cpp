@@ -148,7 +148,6 @@ void ft8_draw(field *f){
 			ft8_top = ft8_new_index(ft8_cursor, -count + 1);
 		}
 	}
-	Serial.printf("ft8_top in draw: %d\n", ft8_top);
 
 	screen_fill_rect(f->x, f->y, f->w, f->h, TFT_BLACK);
   int index = ft8_top ; //ft8_next - count;
@@ -223,6 +222,6 @@ void ft8_touched(int x_offset, int y_offset){
 		ft8_cursor -= FT8_MAX;
 	last_ft8_selected = millis();
 	ft8_select();
-	Serial.printf("after tap cursor is at %d %d:%d:%d\n", y_offset/screen_text_height(2), ft8_top, ft8_cursor, ft8_next);
+	Debug.printf("after tap cursor is at %d %d:%d:%d\n", y_offset/screen_text_height(2), ft8_top, ft8_cursor, ft8_next);
 }
 

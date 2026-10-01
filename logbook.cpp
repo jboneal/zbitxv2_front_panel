@@ -51,7 +51,7 @@ void logbook_update(const char *update_str){
 		rst_recv[10], exchange_sent[10], exchange_recv[10], contact_callsign[10],
 		buff[200], *record;
 
-	Serial1.printf("log %s\n", update_str);
+	Debug.printf("log %s\n", update_str);
 	strcpy(buff, update_str);
 	record = buff;
 	//read the QSO id  
@@ -182,7 +182,6 @@ void logbook_draw(struct field *f){
 
 		unsigned int time_utc = atoi(e->time_utc);
 		sprintf(buff, "%02d:%02d", time_utc / 100, time_utc % 100);
-		Serial.printf("%u\n", time_utc);
 		screen_draw_text(buff, -1, x, y, TFT_CYAN, 2);
 		x += 45;
 

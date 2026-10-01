@@ -186,7 +186,7 @@ void field_set(const char *label, const char *value, bool update_to_radio){
   else if (!strcmp(f->label, "WF")){
     uint8_t spectrum[300];
     if (f->w > sizeof(spectrum)){
-      Serial.println("#waterfall is too large");
+      Debug.println("#waterfall is too large");
       return;
     }
     //scale the values to fit the width
@@ -215,7 +215,7 @@ void field_set(const char *label, const char *value, bool update_to_radio){
 void field_show(const char *label, bool turn_on){
   struct field *f = field_get(label);
   if(!f){
-      Serial.printf("#%s field not found", label);
+      Debug.printf("#%s field not found", label);
       return;
   }
   if (turn_on)
@@ -494,7 +494,7 @@ void smeter_draw(struct field *f){
 
 	struct field *f_tx = field_get("IN_TX");
 	if (!f_tx){
-		Serial.println("#IN_TX field is missing");
+		Debug.println("#IN_TX field is missing");
 		return;
 	}
 	int in_tx = atoi(f_tx->value);
@@ -729,7 +729,7 @@ void field_input(uint8_t input){
     
 		struct field *f_rit = field_get("RIT");
 		if (!f_rit){
-			Serial.println("#RIT field is missing");
+			Debug.println("#RIT field is missing");
 			return;
 		}
 

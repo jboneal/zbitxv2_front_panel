@@ -52,9 +52,9 @@ void screen_init(){
 
   ///calibrate the screen or retreive the calibration from EEPROM
   uint16_t x, y;
-  Serial.println("checking for calibration");
+  Debug.println("checking for calibration");
   if (screen_read(&x, &y)){
-    Serial.println("#Calibrating the screen");
+    Debug.println("#Calibrating the screen");
     while(screen_read(&x, &y))
       delay(100);
     delay(200);
