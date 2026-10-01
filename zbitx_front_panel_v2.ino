@@ -58,15 +58,17 @@ const unsigned long SERVER_RX_TIMEOUT_MS = 10000;
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;
 
 
-unsigned int core1_time = 0;
+volatile unsigned int core1_time = 0; // fed only by core 1 (loop1 and dialog_box)
 
 void core1_check(){
-  
+  // not armed until core 1 has run loop1 at least once: setup1 can legitimately
+  // block for a long time in touch calibration
+  if (core1_time == 0)
+    return;
   if (millis() > core1_time + 10000){
     Debug.println("Core1 is dead!");
     rp2040.restartCore1();
   }
-  
 }
 
 int enc_state(){
@@ -481,7 +483,7 @@ void loop1(void) {
 	static uint32_t next_update = 0;
 
 	now = millis();
-  core1_time = millis();
+  core1_time = now ? now : 1;
 	ui_slice();
   measure_voltages();
   delay(100);
@@ -618,7 +620,6 @@ void loop() {
 	}
 
 	unsigned int now = millis();
-  core1_time = millis();
 
 	if (next_update < now){
 		//these can be the result of moues or encoder inputs

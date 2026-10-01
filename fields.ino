@@ -207,7 +207,9 @@ void field_set(const char *label, const char *value, bool update_to_radio){
 	else {
     if (!strcmp(label, "MODE"))
       field_set_panel(value);
-    strcpy(f->value, value);
+    // value can be up to 999 bytes from the tokenizer; f->value is FIELD_TEXT_MAX_LENGTH
+    strncpy(f->value, value, FIELD_TEXT_MAX_LENGTH - 1);
+    f->value[FIELD_TEXT_MAX_LENGTH - 1] = 0;
   }
   f->redraw = true;
 }
@@ -281,7 +283,7 @@ struct field *field_select(const char *label){
 	else if (!strcmp(f->label, "FINISH")){
 		f_selected = NULL;
 	}
-	else if (!strcmp(f_selected->label, "SAVE")){
+	else if (!strcmp(f->label, "SAVE")){
 		logbook_init();
 	}
 
